@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bloom — a visual programming language</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #faf9f6; color: #1a1a18; padding: 1.5rem; }
+  h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .sub { font-size: 14px; color: #888780; margin-bottom: 1.2rem; }
+
+  #toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #aaa; margin-right: 2px; }
+
+  /* flower color buttons */
+  .color-btn { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.15s; flex-shrink: 0; }
+  .color-btn:hover { transform: scale(1.18); }
+  .color-btn.selected { border-color: #1a1a18; box-shadow: 0 0 0 2px #fff inset; }
+
+  /* element buttons */
+  .elem-btn { font-size: 18px; width: 36px; height: 36px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; background: #f1efe8; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; flex-shrink: 0; }
+  .elem-btn:hover { transform: scale(1.12); }
+  .elem-btn.selected { border-color: #1a1a18; background: #e8e5dc; }
+
+  .ctrl-group { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5F5E5A; }
+  .divider { width: 1px; height: 28px; background: #d3d1c7; margin: 0 4px; }
+
+  #garden { width: 100%; height: 420px; border-radius: 12px; border: 0.5px solid #d3d1c7; background: #f4f2ec; cursor: crosshair; display: block; position: relative; overflow: hidden; }
+  #garden canvas { position: absolute; top: 0; left: 0; }
+
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  button.action { font-family: inherit; font-size: 13px; padding: 7px 16px; border-radius: 8px; border: 0.5px solid #b4b2a9; background: transparent; color: #1a1a18; cursor: pointer; }
+  button.action:hover { background: #f1efe8; }
+  button.action:active { transform: scale(0.98); }
+  #play-btn { font-weight: 500; border-color: #7F77DD; color: #534AB7; }
+
+  #status { font-size: 12px; color: #888780; margin-top: 8px; min-height: 16px; }
+
+  .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; margin-top: 16px; }
+  .leg-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5F5E5A; }
+  .leg-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .leg-emoji { font-size: 14px; line-height: 1; }
+</style>
+</head>
+<body>
+
+<h1>Bloom</h1>
+<p class="sub">A visual programming language. Every program is a garden.</p>
+
+<div id="toolbar">
+  <span class="section-label">Flowers</span>
+  <button class="color-btn selected" id="cb-purple" title="Purple — sine melody" style="background:#7F77DD;" onclick="setTool('flower','purple','#7F77DD','#AFA9EC')"></button>
+  <button class="color-btn" id="cb-teal"   title="Teal — plucked string" style="background:#1D9E75;" onclick="setTool('flower','teal','#1D9E75','#5DCAA5')"></button>
+  <button class="color-btn" id="cb-coral"  title="Coral — warm pad" style="background:#D85A30;" onclick="setTool('flower','coral','#D85A30','#F0997B')"></button>
+  <button class="color-btn" id="cb-amber"  title="Amber — bright bell" style="background:#EF9F27;" onclick="setTool('flower','amber','#EF9F27','#FAC775')"></button>
+  <button class="color-btn" id="cb-gray"   title="Gray — breathy whisper" style="background:#888780;" onclick="setTool('flower','gray','#888780','#B4B2A9')"></button>
+
+  <div class="divider"></div>
+  <span class="section-label">Garden</span>
+  <button class="elem-btn" id="eb-grass"    title="Grass — hi-hat ticks" onclick="setTool('grass')">🌿</button>
+  <button class="elem-btn" id="eb-stone"    title="Stone — deep bass thump" onclick="setTool('stone')">🪨</button>
+  <button class="elem-btn" id="eb-mushroom" title="Mushroom — syncopated click" onclick="setTool('mushroom')">🍄</button>
+  <button class="elem-btn" id="eb-puddle"   title="Puddle — silence zone" onclick="setTool('puddle')">🌊</button>
+
+  <div class="divider"></div>
+  <div class="ctrl-group">
+    <label>Petals</label>
+    <input type="range" min="3" max="10" value="5" id="petal-slider" step="1" style="width:65px;">
+    <span id="petal-val" style="font-weight:500;min-width:14px;">5</span>
+  </div>
+</div>
+
+<div id="garden">
+  <canvas id="static-canvas"></canvas>
+  <canvas id="anim-canvas"></canvas>
+</div>
+
+<div class="btn-row">
+  <button class="action" id="play-btn" onclick="playGarden()">▶ Play garden</button>
+  <button class="action" onclick="stopGarden()">■ Stop</button>
+  <button class="action" onclick="clearGarden()">Clear</button>
+</div>
+<div id="status">Choose a flower color or garden element, then click to plant.</div>
+
+<div class="legend">
+  <div class="leg-item"><div class="leg-swatch" style="background:#7F77DD;"></div><b>Purple</b> — soft sine melody</div>
+  <div class="leg-item"><div class="leg-swatch" style="background:#1D9E75;"></div><b>Teal</b> — plucked string</div>
+  <div class="leg-item"><div class="leg-swatch" style="background:#D85A30;"></div><b>Coral</b> — warm sustained pad</div>
+  <div class="leg-item"><div class="leg-swatch" style="background:#EF9F27;"></div><b>Amber</b> — glassy bell tone</div>
+  <div class="leg-item"><div class="leg-swatch" style="background:#888780;"></div><b>Gray</b> — breathy whisper</div>
+  <div class="leg-item"><span class="leg-emoji">🌿</span><b>Grass</b> — hi-hat rhythm ticks</div>
+  <div class="leg-item"><span class="leg-emoji">🪨</span><b>Stone</b> — deep bass thump</div>
+  <div class="leg-item"><span class="leg-emoji">🍄</span><b>Mushroom</b> — syncopated off-beat click</div>
+  <div class="leg-item"><span class="leg-emoji">🌊</span><b>Puddle</b> — silence zone (muffles nearby flowers)</div>
+</div>
+
+<script>
+// ── canvas setup ───────────────────────────────────────────────
+const garden = document.getElementById('garden');
+const sCanvas = document.getElementById('static-canvas');
+const aCanvas = document.getElementById('anim-canvas');
+const sCtx = sCanvas.getContext('2d');
+const aCtx = aCanvas.getContext('2d');
+
+function resize() {
+  const r = garden.getBoundingClientRect();
+  sCanvas.width = aCanvas.width = r.width;
+  sCanvas.height = aCanvas.height = r.height;
+  redrawStatic();
+}
+window.addEventListener('resize', resize);
+setTimeout(resize, 120);
+
+// ── state ──────────────────────────────────────────────────────
+let flowers  = [];
+let elements = []; // grass, stone, mushroom, puddle
+let animFrame = null;
+let audioCtx  = null;
+let playing   = false;
+let amberActive = false;
+let amberHue    = 0;
+
+// current tool
+let toolType  = 'flower';
+let toolColor = 'purple';
+let toolFill  = '#7F77DD';
+let toolLight = '#AFA9EC';
+
+// ── toolbar ────────────────────────────────────────────────────
+document.getElementById('petal-slider').addEventListener('input', e => {
+  document.getElementById('petal-val').textContent = e.target.value;
+});
+
+function setTool(type, color, fill, light) {
+  toolType = type;
+  // clear all selections
+  document.querySelectorAll('.color-btn,.elem-btn').forEach(b => b.classList.remove('selected'));
+  if (type === 'flower') {
+    toolColor = color; toolFill = fill; toolLight = light;
+    document.getElementById('cb-' + color).classList.add('selected');
+  } else {
+    document.getElementById('eb-' + type).classList.add('selected');
+  }
+}
+// default selection
+document.getElementById('cb-purple').classList.add('selected');
+
+// ── planting ───────────────────────────────────────────────────
+garden.addEventListener('click', e => {
+  const r = garden.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const y = e.clientY - r.top;
+
+  if (toolType === 'flower') {
+    const petals = parseInt(document.getElementById('petal-slider').value);
+    flowers.push({ x, y, petals, size: 38, color: toolColor, fill: toolFill, light: toolLight, phase: Math.random() * Math.PI * 2 });
+    setStatus('Planted a ' + toolColor + ' flower. Garden: ' + flowers.length + ' flower(s), ' + elements.length + ' element(s).');
+  } else {
+    elements.push({ type: toolType, x, y, phase: Math.random() * Math.PI * 2 });
+    setStatus('Planted ' + toolType + '. Garden: ' + flowers.length + ' flower(s), ' + elements.length + ' element(s).');
+  }
+  redrawStatic();
+});
+
+// ── drawing: flowers ───────────────────────────────────────────
+function drawFlower(ctx, f, highlight, t) {
+  const { x, y, petals, size, fill, light } = f;
+  const stemH = size * 1.5;
+  ctx.save();
+  if (highlight && t !== undefined) {
+    ctx.shadowColor = fill;
+    ctx.shadowBlur  = 14 * (0.8 + 0.2 * Math.sin(t * 5 + f.phase));
+  }
+  // stem
+  ctx.strokeStyle = '#5a8a3a';
+  ctx.lineWidth   = 2.5;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x, y + size * 0.28);
+  ctx.bezierCurveTo(x - size * 0.25, y + stemH * 0.5, x + size * 0.18, y + stemH * 0.72, x, y + stemH);
+  ctx.stroke();
+  // leaf
+  if (petals > 4) {
+    ctx.strokeStyle = '#7aba4a';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y + stemH * 0.55);
+    ctx.bezierCurveTo(x - size * 0.55, y + stemH * 0.38, x - size * 0.72, y + stemH * 0.52, x - size * 0.48, y + stemH * 0.68);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  // petals
+  for (let i = 0; i < petals; i++) {
+    const angle  = (i / petals) * Math.PI * 2 - Math.PI / 2;
+    const wobble = highlight && t !== undefined ? 0.07 * Math.sin(t * 3.5 + f.phase + i) : 0;
+    const px = x + Math.cos(angle + wobble) * size * 0.72;
+    const py = y + Math.sin(angle + wobble) * size * 0.72;
+    ctx.beginPath();
+    ctx.ellipse((x + px) / 2, (y + py) / 2, size * 0.33, size * 0.17, angle, 0, Math.PI * 2);
+    ctx.fillStyle   = highlight ? light : light + 'bb';
+    ctx.fill();
+    ctx.strokeStyle = fill;
+    ctx.lineWidth   = 0.7;
+    ctx.stroke();
+  }
+  // center
+  ctx.beginPath();
+  ctx.arc(x, y, size * 0.25, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, size * 0.12, 0, Math.PI * 2);
+  ctx.fillStyle   = '#fff';
+  ctx.globalAlpha = 0.55;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ── drawing: garden elements ───────────────────────────────────
+function drawElement(ctx, el, highlight, t) {
+  ctx.save();
+  const { x, y, type, phase } = el;
+
+  if (type === 'grass') {
+    const blades = 5;
+    for (let i = 0; i < blades; i++) {
+      const ox = (i - 2) * 5;
+      const sway = highlight && t ? Math.sin(t * 4 + phase + i) * 3 : 0;
+      ctx.strokeStyle = highlight ? '#8bc34a' : '#6a9e2a';
+      ctx.lineWidth   = 1.8;
+      ctx.lineCap     = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x + ox, y + 10);
+      ctx.quadraticCurveTo(x + ox + sway, y - 4, x + ox + sway * 1.5, y - 14);
+      ctx.stroke();
+    }
+    if (highlight && t) {
+      ctx.beginPath();
+      ctx.arc(x, y - 6, 10, 0, Math.PI * 2);
+      ctx.strokeStyle = '#8bc34a';
+      ctx.globalAlpha = 0.25;
+      ctx.lineWidth   = 6;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  else if (type === 'stone') {
+    const pulse = highlight && t ? 0.06 * Math.sin(t * 4 + phase) : 0;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, 18 + pulse * 30, 11 + pulse * 20, 0, 0, Math.PI * 2);
+    ctx.fillStyle = highlight ? '#a0a09a' : '#7a7a72';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x - 3, y, 14, 9, -0.2, 0, Math.PI * 2);
+    ctx.fillStyle = highlight ? '#c0c0b8' : '#9a9a90';
+    ctx.fill();
+    if (highlight && t) {
+      ctx.beginPath();
+      ctx.ellipse(x, y + 2, 22, 14, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = '#aaa';
+      ctx.globalAlpha = 0.3;
+      ctx.lineWidth   = 4;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  else if (type === 'mushroom') {
+    // stem
+    ctx.fillStyle = '#e8d8c0';
+    ctx.beginPath();
+    ctx.roundRect(x - 5, y, 10, 14, 3);
+    ctx.fill();
+    // cap
+    const capCol = highlight ? '#e05050' : '#c04040';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, 16, 11, 0, Math.PI, Math.PI * 2);
+    ctx.fillStyle = capCol;
+    ctx.fill();
+    // spots
+    ctx.fillStyle = '#fff';
+    ctx.globalAlpha = 0.7;
+    [[x - 5, y - 4, 2.5], [x + 4, y - 5, 2], [x, y - 7, 1.8]].forEach(([sx, sy, sr]) => {
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    if (highlight && t) {
+      ctx.beginPath();
+      ctx.ellipse(x, y + 2, 20, 14, 0, Math.PI, Math.PI * 2);
+      ctx.strokeStyle = '#e05050';
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth   = 5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  else if (type === 'puddle') {
+    const ripple = t ? 0.5 + 0.5 * Math.sin(t * 1.8 + phase) : 0;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, 28, 14, 0, 0, Math.PI * 2);
+    ctx.fillStyle   = '#a8cce0';
+    ctx.globalAlpha = 0.38;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 4, 28 + ripple * 6, 14 + ripple * 3, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = '#7aaec8';
+    ctx.lineWidth   = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // sheen
+    ctx.beginPath();
+    ctx.ellipse(x - 6, y + 1, 8, 3, -0.3, 0, Math.PI * 2);
+    ctx.fillStyle   = '#fff';
+    ctx.globalAlpha = 0.22;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+function redrawStatic() {
+  sCtx.clearRect(0, 0, sCanvas.width, sCanvas.height);
+  for (const el of elements) drawElement(sCtx, el, false);
+  for (const f  of flowers)  drawFlower(sCtx, f, false);
+}
+
+// ── audio helpers ──────────────────────────────────────────────
+function getAC() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+// purple — soft sine with gentle vibrato
+function playSine(freq, start, dur, gain, ac) {
+  const osc = ac.createOscillator();
+  const lfo = ac.createOscillator();
+  const lfoG = ac.createGain();
+  const g   = ac.createGain();
+  osc.type = 'sine'; osc.frequency.value = freq;
+  lfo.frequency.value = 5; lfoG.gain.value = 3;
+  lfo.connect(lfoG).connect(osc.frequency);
+  g.gain.setValueAtTime(0, start);
+  g.gain.linearRampToValueAtTime(gain, start + 0.06);
+  g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+  osc.connect(g).connect(ac.destination);
+  lfo.start(start); osc.start(start);
+  lfo.stop(start + dur + 0.1); osc.stop(start + dur + 0.1);
+}
+
+// teal — plucked string (Karplus-Strong approximation)
+function playPluck(freq, start, gain, ac) {
+  const bufLen = Math.round(ac.sampleRate / freq);
+  const buf    = ac.createBuffer(1, bufLen, ac.sampleRate);
+  const d      = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) d[i] = Math.random() * 2 - 1;
+  const src  = ac.createBufferSource();
+  const filt = ac.createBiquadFilter();
+  const g    = ac.createGain();
+  src.buffer = buf; src.loop = true;
+  filt.type  = 'lowpass'; filt.frequency.value = freq * 3;
+  g.gain.setValueAtTime(gain, start);
+  g.gain.exponentialRampToValueAtTime(0.001, start + 1.4);
+  src.connect(filt).connect(g).connect(ac.destination);
+  src.start(start); src.stop(start + 1.5);
+}
+
+// coral — warm pad (two detuned saws + lowpass)
+function playPad(freq, start, dur, gain, ac) {
+  [0, 7].forEach(detune => {
+    const osc = ac.createOscillator();
+    const g   = ac.createGain();
+    const flt = ac.createBiquadFilter();
+    osc.type = 'sawtooth'; osc.frequency.value = freq; osc.detune.value = detune;
+    flt.type = 'lowpass'; flt.frequency.value = freq * 2.5; flt.Q.value = 1.5;
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(gain * 0.5, start + 0.18);
+    g.gain.setValueAtTime(gain * 0.5, start + dur - 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+    osc.connect(flt).connect(g).connect(ac.destination);
+    osc.start(start); osc.stop(start + dur + 0.1);
+  });
+}
+
+// amber — glassy bell (sine + higher harmonics, fast decay)
+function playBell(freq, start, gain, ac) {
+  [[1, 1], [2.756, 0.5], [5.404, 0.25], [8.933, 0.12]].forEach(([ratio, rel]) => {
+    const osc = ac.createOscillator();
+    const g   = ac.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq * ratio;
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(gain * rel, start + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, start + 1.8 * rel);
+    osc.connect(g).connect(ac.destination);
+    osc.start(start); osc.stop(start + 2.0);
+  });
+}
+
+// gray — breathy whisper (filtered noise, very quiet)
+function playWhisper(start, dur, gain, ac) {
+  const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * dur), ac.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  const bp  = ac.createBiquadFilter();
+  const g   = ac.createGain();
+  src.buffer = buf;
+  bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.4;
+  g.gain.setValueAtTime(0, start);
+  g.gain.linearRampToValueAtTime(gain * 0.18, start + 0.12);
+  g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+  src.connect(bp).connect(g).connect(ac.destination);
+  src.start(start); src.stop(start + dur + 0.1);
+}
+
+// grass — hi-hat tick (short noise burst)
+function playHihat(start, ac, vol) {
+  const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.04), ac.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  const hp  = ac.createBiquadFilter();
+  const g   = ac.createGain();
+  src.buffer = buf;
+  hp.type = 'highpass'; hp.frequency.value = 8000;
+  g.gain.setValueAtTime(vol * 0.35, start);
+  g.gain.exponentialRampToValueAtTime(0.001, start + 0.04);
+  src.connect(hp).connect(g).connect(ac.destination);
+  src.start(start);
+}
+
+// stone — deep bass thump
+function playThump(start, ac, vol) {
+  const o = ac.createOscillator();
+  const g = ac.createGain();
+  o.type  = 'sine';
+  o.frequency.setValueAtTime(90, start);
+  o.frequency.exponentialRampToValueAtTime(28, start + 0.25);
+  g.gain.setValueAtTime(vol * 0.9, start);
+  g.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+  o.connect(g).connect(ac.destination);
+  o.start(start); o.stop(start + 0.4);
+}
+
+// mushroom — syncopated click (short mid-freq noise)
+function playClick(start, ac, vol) {
+  const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.025), ac.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  const bp  = ac.createBiquadFilter();
+  const g   = ac.createGain();
+  src.buffer = buf;
+  bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 2;
+  g.gain.setValueAtTime(vol * 0.5, start);
+  g.gain.exponentialRampToValueAtTime(0.001, start + 0.025);
+  src.connect(bp).connect(g).connect(ac.destination);
+  src.start(start);
+}
+
+// ── melody scale (pentatonic) ──────────────────────────────────
+const PENTA = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 784.00, 880.00];
+
+// ── puddle proximity check ─────────────────────────────────────
+function puddleVolume(fx, fy) {
+  let vol = 1.0;
+  for (const el of elements) {
+    if (el.type !== 'puddle') continue;
+    const dx = fx - el.x, dy = fy - el.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 70) vol *= (dist / 70) * 0.6 + 0.1; // muffles to ~10% at center
+  }
+  return Math.max(0.05, vol);
+}
+
+// ── sequencing ─────────────────────────────────────────────────
+function playGarden() {
+  const total = flowers.length + elements.filter(e => e.type !== 'puddle').length;
+  if (total === 0) { setStatus('Plant something first!'); return; }
+  stopGarden();
+  playing = true;
+  const ac      = getAC();
+  const stepDur = 0.32;
+  const baseT   = ac.currentTime + 0.1;
+  amberActive   = false;
+  amberHue      = 0;
+
+  // ── flowers ──
+  flowers.forEach((f, fi) => {
+    const delay  = fi * 0.11;
+    const pvol   = puddleVolume(f.x, f.y);
+
+    if (f.color === 'purple') {
+      for (let i = 0; i < f.petals; i++) {
+        const freq = PENTA[i % PENTA.length];
+        playSine(freq, baseT + delay + i * stepDur, stepDur * 0.85, 0.28 * pvol, ac);
+      }
+    } else if (f.color === 'teal') {
+      for (let i = 0; i < f.petals; i++) {
+        const freq = PENTA[i % PENTA.length] * 0.75;
+        playPluck(freq, baseT + delay + i * stepDur * 0.9, 0.35 * pvol, ac);
+      }
+    } else if (f.color === 'coral') {
+      for (let i = 0; i < f.petals; i++) {
+        const freq = PENTA[i % 5]; // lower register
+        playPad(freq, baseT + delay + i * stepDur * 1.1, stepDur * 1.0, 0.22 * pvol, ac);
+      }
+    } else if (f.color === 'amber') {
+      amberActive = true;
+      for (let i = 0; i < f.petals; i++) {
+        const freq = PENTA[i % PENTA.length] * 2; // high register
+        playBell(freq, baseT + delay + i * stepDur * 0.75, 0.3 * pvol, ac);
+      }
+    } else if (f.color === 'gray') {
+      for (let i = 0; i < f.petals; i++) {
+        playWhisper(baseT + delay + i * stepDur, stepDur * 0.9, 0.7 * pvol, ac);
+      }
+    }
+  });
+
+  // ── garden elements ──
+  // figure out a looping beat grid based on longest flower sequence
+  const maxSteps = flowers.length > 0 ? Math.max(...flowers.map(f => f.petals)) : 8;
+  const beatDur  = stepDur * 0.72;
+
+  elements.forEach((el, ei) => {
+    if (el.type === 'puddle') return; // visual/silence only
+    const pvol = puddleVolume(el.x, el.y);
+
+    if (el.type === 'grass') {
+      // hi-hat on every beat
+      for (let i = 0; i < maxSteps * 2; i++) {
+        playHihat(baseT + i * beatDur * 0.5, ac, 0.7 * pvol);
+      }
+    } else if (el.type === 'stone') {
+      // bass thump on beats 1 and 3 (every other beat)
+      for (let i = 0; i < maxSteps; i += 2) {
+        playThump(baseT + i * beatDur, ac, 0.9 * pvol);
+      }
+    } else if (el.type === 'mushroom') {
+      // syncopated: off-beats (beats 2 and 4)
+      for (let i = 1; i < maxSteps * 2; i += 2) {
+        playClick(baseT + i * beatDur * 0.5 + beatDur * 0.25, ac, 0.8 * pvol);
+      }
+    }
+  });
+
+  // total duration for animation
+  const flowerDur  = flowers.length > 0
+    ? Math.max(...flowers.map((f, fi) => fi * 0.11 + f.petals * stepDur * 1.1 + stepDur))
+    : 0;
+  const elemDur    = maxSteps * beatDur + 0.5;
+  const totalDur   = Math.max(flowerDur, elemDur);
+
+  const count = flowers.length + elements.filter(e => e.type !== 'puddle').length;
+  setStatus('Playing ' + count + ' element' + (count !== 1 ? 's' : '') + '...');
+  startAnim(stepDur, beatDur, totalDur, maxSteps);
+}
+
+// ── animation loop ─────────────────────────────────────────────
+function startAnim(stepDur, beatDur, totalDur, maxSteps) {
+  const startWall = performance.now();
+
+  function frame() {
+    if (!playing) { aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height); return; }
+    const elapsed = (performance.now() - startWall) / 1000;
+
+    aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height);
+
+    // amber colour wash
+    if (amberActive) {
+      amberHue = (amberHue + 0.4) % 360;
+      aCtx.fillStyle = `hsla(${(amberHue + 30) % 360}, 65%, 82%, 0.07)`;
+      aCtx.fillRect(0, 0, aCanvas.width, aCanvas.height);
+    }
+
+    // puddle ripples (always animate during playback)
+    elements.filter(e => e.type === 'puddle').forEach(el => {
+      drawElement(aCtx, el, false, elapsed);
+    });
+
+    // garden elements highlight on their beat
+    elements.forEach(el => {
+      if (el.type === 'puddle') return;
+      let inBeat = false;
+      if (el.type === 'grass') {
+        const beatIdx = Math.floor(elapsed / (beatDur * 0.5));
+        inBeat = (elapsed - beatIdx * beatDur * 0.5) < 0.1;
+      } else if (el.type === 'stone') {
+        const beatIdx = Math.floor(elapsed / beatDur);
+        inBeat = beatIdx % 2 === 0 && (elapsed - beatIdx * beatDur) < 0.12;
+      } else if (el.type === 'mushroom') {
+        const beatIdx = Math.floor(elapsed / (beatDur * 0.5));
+        const beatPos = elapsed - beatIdx * beatDur * 0.5;
+        inBeat = beatIdx % 2 === 1 && (beatPos - beatDur * 0.25) > 0 && (beatPos - beatDur * 0.25) < 0.1;
+      }
+      drawElement(aCtx, el, inBeat, elapsed);
+    });
+
+    // flowers
+    flowers.forEach((f, fi) => {
+      const delay   = fi * 0.11;
+      const localT  = elapsed - delay;
+      const stepLen = f.color === 'coral' ? stepDur * 1.1 : stepDur;
+      const step    = Math.floor(localT / stepLen);
+      const inStep  = localT >= 0 && step < f.petals;
+      drawFlower(aCtx, f, inStep, elapsed);
+    });
+
+    if (elapsed < totalDur + 0.4) {
+      animFrame = requestAnimationFrame(frame);
+    } else {
+      playing = false;
+      aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height);
+      setStatus('Done. Press Play to hear it again.');
+    }
+  }
+  animFrame = requestAnimationFrame(frame);
+}
+
+// ── utils ──────────────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+function stopGarden() {
+  playing = false;
+  if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height);
+  setStatus('Stopped.');
+}
+
+function clearGarden() {
+  stopGarden();
+  flowers = []; elements = [];
+  redrawStatic();
+  setStatus('Garden cleared. Click to plant.');
+}
+</script>
+</body>
+</html>
