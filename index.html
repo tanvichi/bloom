@@ -485,71 +485,10 @@ function playGarden() {
   if (total === 0) { setStatus('Plant something first!'); return; }
   stopGarden();
   playing = true;
-  const ac      = getAC();
   const stepDur = 0.32;
-  const baseT   = ac.currentTime + 0.1;
-  amberActive   = false;
-  amberHue      = 0;
-
-  // ── flowers ──
-  flowers.forEach((f, fi) => {
-    const delay  = fi * 0.11;
-    const pvol   = puddleVolume(f.x, f.y);
-
-    if (f.color === 'purple') {
-      for (let i = 0; i < f.petals; i++) {
-        const freq = PENTA[i % PENTA.length];
-        playSine(freq, baseT + delay + i * stepDur, stepDur * 0.85, 0.28 * pvol, ac);
-      }
-    } else if (f.color === 'teal') {
-      for (let i = 0; i < f.petals; i++) {
-        const freq = PENTA[i % PENTA.length] * 0.75;
-        playPluck(freq, baseT + delay + i * stepDur * 0.9, 0.35 * pvol, ac);
-      }
-    } else if (f.color === 'coral') {
-      for (let i = 0; i < f.petals; i++) {
-        const freq = PENTA[i % 5]; // lower register
-        playPad(freq, baseT + delay + i * stepDur * 1.1, stepDur * 1.0, 0.22 * pvol, ac);
-      }
-    } else if (f.color === 'amber') {
-      amberActive = true;
-      for (let i = 0; i < f.petals; i++) {
-        const freq = PENTA[i % PENTA.length] * 2; // high register
-        playBell(freq, baseT + delay + i * stepDur * 0.75, 0.3 * pvol, ac);
-      }
-    } else if (f.color === 'gray') {
-      for (let i = 0; i < f.petals; i++) {
-        playWhisper(baseT + delay + i * stepDur, stepDur * 0.9, 0.7 * pvol, ac);
-      }
-    }
-  });
-
-  // ── garden elements ──
-  // figure out a looping beat grid based on longest flower sequence
   const maxSteps = flowers.length > 0 ? Math.max(...flowers.map(f => f.petals)) : 8;
   const beatDur  = stepDur * 0.72;
-
-  elements.forEach((el, ei) => {
-    if (el.type === 'puddle') return; // visual/silence only
-    const pvol = puddleVolume(el.x, el.y);
-
-    if (el.type === 'grass') {
-      // hi-hat on every beat
-      for (let i = 0; i < maxSteps * 2; i++) {
-        playHihat(baseT + i * beatDur * 0.5, ac, 0.7 * pvol);
-      }
-    } else if (el.type === 'stone') {
-      // bass thump on beats 1 and 3 (every other beat)
-      for (let i = 0; i < maxSteps; i += 2) {
-        playThump(baseT + i * beatDur, ac, 0.9 * pvol);
-      }
-    } else if (el.type === 'mushroom') {
-      // syncopated: off-beats (beats 2 and 4)
-      for (let i = 1; i < maxSteps * 2; i += 2) {
-        playClick(baseT + i * beatDur * 0.5 + beatDur * 0.25, ac, 0.8 * pvol);
-      }
-    }
-  });
+  amberHue = 0;
 
   // total duration for animation
   const flowerDur  = flowers.length > 0
@@ -559,17 +498,71 @@ function playGarden() {
   const totalDur   = Math.max(flowerDur, elemDur);
 
   const count = flowers.length + elements.filter(e => e.type !== 'puddle').length;
-  setStatus('Playing ' + count + ' element' + (count !== 1 ? 's' : '') + '...');
+  setStatus('Playing ' + count + ' element' + (count !== 1 ? 's' : '') + ' — looping. Press Stop to end.');
   startAnim(stepDur, beatDur, totalDur, maxSteps);
+}
+
+// schedules one full pass of audio starting at ac time baseT
+function scheduleAudio(baseT, stepDur, beatDur, maxSteps) {
+  const ac = getAC();
+  amberActive = flowers.some(f => f.color === 'amber');
+
+  flowers.forEach((f, fi) => {
+    const delay = fi * 0.11;
+    const pvol  = puddleVolume(f.x, f.y);
+    if (f.color === 'purple') {
+      for (let i = 0; i < f.petals; i++)
+        playSine(PENTA[i % PENTA.length], baseT + delay + i * stepDur, stepDur * 0.85, 0.28 * pvol, ac);
+    } else if (f.color === 'teal') {
+      for (let i = 0; i < f.petals; i++)
+        playPluck(PENTA[i % PENTA.length] * 0.75, baseT + delay + i * stepDur * 0.9, 0.35 * pvol, ac);
+    } else if (f.color === 'coral') {
+      for (let i = 0; i < f.petals; i++)
+        playPad(PENTA[i % 5], baseT + delay + i * stepDur * 1.1, stepDur * 1.0, 0.22 * pvol, ac);
+    } else if (f.color === 'amber') {
+      for (let i = 0; i < f.petals; i++)
+        playBell(PENTA[i % PENTA.length] * 2, baseT + delay + i * stepDur * 0.75, 0.3 * pvol, ac);
+    } else if (f.color === 'gray') {
+      for (let i = 0; i < f.petals; i++)
+        playWhisper(baseT + delay + i * stepDur, stepDur * 0.9, 0.7 * pvol, ac);
+    }
+  });
+
+  elements.forEach(el => {
+    if (el.type === 'puddle') return;
+    const pvol = puddleVolume(el.x, el.y);
+    if (el.type === 'grass') {
+      for (let i = 0; i < maxSteps * 2; i++)
+        playHihat(baseT + i * beatDur * 0.5, ac, 0.7 * pvol);
+    } else if (el.type === 'stone') {
+      for (let i = 0; i < maxSteps; i += 2)
+        playThump(baseT + i * beatDur, ac, 0.9 * pvol);
+    } else if (el.type === 'mushroom') {
+      for (let i = 1; i < maxSteps * 2; i += 2)
+        playClick(baseT + i * beatDur * 0.5 + beatDur * 0.25, ac, 0.8 * pvol);
+    }
+  });
 }
 
 // ── animation loop ─────────────────────────────────────────────
 function startAnim(stepDur, beatDur, totalDur, maxSteps) {
-  const startWall = performance.now();
+  let loopStart = performance.now();
+  // schedule the first audio pass
+  scheduleAudio(getAC().currentTime + 0.1, stepDur, beatDur, maxSteps);
 
   function frame() {
     if (!playing) { aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height); return; }
-    const elapsed = (performance.now() - startWall) / 1000;
+    const now     = performance.now();
+    const elapsed = (now - loopStart) / 1000;
+
+    // when one loop is done, restart audio and reset clock
+    if (elapsed >= totalDur) {
+      loopStart = now;
+      scheduleAudio(getAC().currentTime + 0.05, stepDur, beatDur, maxSteps);
+    }
+
+    // use elapsed mod totalDur so animation also loops cleanly
+    const t = elapsed % totalDur;
 
     aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height);
 
@@ -580,9 +573,9 @@ function startAnim(stepDur, beatDur, totalDur, maxSteps) {
       aCtx.fillRect(0, 0, aCanvas.width, aCanvas.height);
     }
 
-    // puddle ripples (always animate during playback)
+    // puddle ripples
     elements.filter(e => e.type === 'puddle').forEach(el => {
-      drawElement(aCtx, el, false, elapsed);
+      drawElement(aCtx, el, false, t);
     });
 
     // garden elements highlight on their beat
@@ -590,36 +583,30 @@ function startAnim(stepDur, beatDur, totalDur, maxSteps) {
       if (el.type === 'puddle') return;
       let inBeat = false;
       if (el.type === 'grass') {
-        const beatIdx = Math.floor(elapsed / (beatDur * 0.5));
-        inBeat = (elapsed - beatIdx * beatDur * 0.5) < 0.1;
+        const beatIdx = Math.floor(t / (beatDur * 0.5));
+        inBeat = (t - beatIdx * beatDur * 0.5) < 0.1;
       } else if (el.type === 'stone') {
-        const beatIdx = Math.floor(elapsed / beatDur);
-        inBeat = beatIdx % 2 === 0 && (elapsed - beatIdx * beatDur) < 0.12;
+        const beatIdx = Math.floor(t / beatDur);
+        inBeat = beatIdx % 2 === 0 && (t - beatIdx * beatDur) < 0.12;
       } else if (el.type === 'mushroom') {
-        const beatIdx = Math.floor(elapsed / (beatDur * 0.5));
-        const beatPos = elapsed - beatIdx * beatDur * 0.5;
+        const beatIdx = Math.floor(t / (beatDur * 0.5));
+        const beatPos = t - beatIdx * beatDur * 0.5;
         inBeat = beatIdx % 2 === 1 && (beatPos - beatDur * 0.25) > 0 && (beatPos - beatDur * 0.25) < 0.1;
       }
-      drawElement(aCtx, el, inBeat, elapsed);
+      drawElement(aCtx, el, inBeat, t);
     });
 
     // flowers
     flowers.forEach((f, fi) => {
       const delay   = fi * 0.11;
-      const localT  = elapsed - delay;
+      const localT  = t - delay;
       const stepLen = f.color === 'coral' ? stepDur * 1.1 : stepDur;
       const step    = Math.floor(localT / stepLen);
       const inStep  = localT >= 0 && step < f.petals;
-      drawFlower(aCtx, f, inStep, elapsed);
+      drawFlower(aCtx, f, inStep, t);
     });
 
-    if (elapsed < totalDur + 0.4) {
-      animFrame = requestAnimationFrame(frame);
-    } else {
-      playing = false;
-      aCtx.clearRect(0, 0, aCanvas.width, aCanvas.height);
-      setStatus('Done. Press Play to hear it again.');
-    }
+    animFrame = requestAnimationFrame(frame);
   }
   animFrame = requestAnimationFrame(frame);
 }
